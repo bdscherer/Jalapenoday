@@ -1,20 +1,17 @@
 # Iron Viper: Black Sun
 
-A complete browser-playable single-player 2D side-scrolling run-and-gun built with **Phaser 3 + Arcade Physics**.
+A complete browser-playable single-player 2D side-scrolling run-and-gun built with Phaser 3 + Arcade Physics.
 
 ## Run locally
 
-Because modules are used, run from a static server (recommended):
+### Quick start (double-click supported)
+Open `index.html` directly in a browser. The runtime now uses a non-module script entry (`src/game.js`) so it does not fail on `file://` due to ES module CORS restrictions.
 
+### Optional local server
 ```bash
 python3 -m http.server 8080
 ```
-
-Then open:
-
-- `http://localhost:8080`
-
-(Direct file double-click may be blocked by module/CORS rules in some browsers.)
+Then open `http://localhost:8080`.
 
 ## Controls
 
@@ -33,7 +30,6 @@ Then open:
 - Enter or Esc: pause
 
 ## Game features included
-
 - Single-player arcade run-and-gun loop
 - 10 stages and 10 bosses with escalating stats/pattern intensity
 - Gamepad connect/disconnect support and “press any button/key” title behavior
@@ -45,19 +41,15 @@ Then open:
 - localStorage persistence for settings/high score/unlocks
 
 ## Difficulty / tuning notes
-
-Tune core balance in data files:
-
+Tune core balance in these files:
 - `src/data/config.js`
   - `PLAYER_CONFIG`: lives, HP, bombs, movement, i-frames
-  - `WEAPONS`: per-weapon cadence/damage/spread/projectile speed
+  - `WEAPONS`: cadence, damage, spread, projectile speed
   - `ENEMY_TYPES`: HP/speed/cadence/projectile speed/telegraph timing
-  - `DIFFICULTY_BY_LEVEL`: per-stage HP multiplier, fire multiplier, wave count/spawn gaps
+  - `DIFFICULTY_BY_LEVEL`: HP multiplier, fire multiplier, wave count, spawn gap
 - `src/data/bosses.js`
-  - `baseHp`, `patterns`, `cooldown`, score values
+  - `baseHp`, `patterns`, and pattern cooldowns
 
 ## Known limitations
-
-- Placeholder geometric visuals/audio hooks are used (original and consistent style).
-- Bosses use a shared base framework + per-stage pattern configurations rather than bespoke sprites.
-- Fullscreen toggle is available in Settings via `F` key.
+- Placeholder geometric visuals/audio hooks are used (consistent original style).
+- Phaser is loaded from CDN; if offline/no network, load may fail unless you vendor Phaser locally.
