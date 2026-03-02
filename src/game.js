@@ -1,4 +1,15 @@
 (() => {
+  const NES = {
+    dark: 0x0f1b3a,
+    sky: 0x2a4b7c,
+    cloud: 0xa6c7ff,
+    stone: 0x3d4c66,
+    grass: 0x66a24f,
+    hero: 0x58b4ff,
+    heroTrim: 0xd6f3ff,
+    enemy: 0xd26868,
+    mech: 0xa88a62,
+  };
   const GAME_WIDTH = 960;
   const GAME_HEIGHT = 540;
   const PLAYER_CONFIG = { lives: 3, maxHp: 5, bombsPerLife: 3, speed: 220, jumpVelocity: -430, invulnMs: 1000, respawnInvulnMs: 1500 };
@@ -78,7 +89,7 @@
   }
 
   class Projectile extends Phaser.Physics.Arcade.Image {
-    constructor(scene, x, y, owner, damage, life, color) { super(scene, x, y, 'pixel'); scene.add.existing(this); scene.physics.add.existing(this); this.owner = owner; this.damage = damage; this.life = life; this.pierce = 0; this.setTint(color); this.setDepth(5); this.body.setAllowGravity(false); }
+    constructor(scene, x, y, owner, damage, life, color) { super(scene, x, y, owner === 'player' ? 'bullet-player' : 'bullet-enemy'); scene.add.existing(this); scene.physics.add.existing(this); this.owner = owner; this.damage = damage; this.life = life; this.pierce = 0; this.setTint(color); this.setDepth(5); this.body.setAllowGravity(false); }
     preUpdate(_time, delta) { this.life -= delta; if (this.life <= 0 || this.x < -100 || this.x > this.scene.levelWidth + 100 || this.y < -50 || this.y > 650) this.destroy(); }
   }
 
@@ -88,38 +99,38 @@
     activateRapid(ms = 8000) { this.rapidTimer = Math.max(this.rapidTimer, ms); }
     update(delta) { this.rapidTimer = Math.max(0, this.rapidTimer - delta); }
     fire(aim, now) { const base = WEAPONS[this.weaponKey]; const cooldown = this.rapidTimer > 0 ? base.cooldown * 0.5 : base.cooldown; if (now - this.lastFire < cooldown) return; this.lastFire = now;
-      for (let i = 0; i < base.count; i++) { const offset = (i - (base.count - 1) / 2) * base.spread; const angle = Phaser.Math.Angle.Between(0, 0, aim.x, aim.y) + Phaser.Math.DegToRad(offset); const dx = Math.cos(angle); const dy = Math.sin(angle); const p = new Projectile(this.scene, this.owner.x + dx * 22, this.owner.y + dy * 8, 'player', base.damage, base.life, 0xfff7a8); p.setScale(8, 3); p.pierce = base.pierce; this.projectiles.add(p); this.scene.physics.velocityFromRotation(angle, base.speed, p.body.velocity); if (base.homing) p.homing = true; }
+      for (let i = 0; i < base.count; i++) { const offset = (i - (base.count - 1) / 2) * base.spread; const angle = Phaser.Math.Angle.Between(0, 0, aim.x, aim.y) + Phaser.Math.DegToRad(offset); const dx = Math.cos(angle); const dy = Math.sin(angle); const p = new Projectile(this.scene, this.owner.x + dx * 22, this.owner.y + dy * 8, 'player', base.damage, base.life, 0xfff7a8); p.setScale(1.3, 1.3); p.pierce = base.pierce; this.projectiles.add(p); this.scene.physics.velocityFromRotation(angle, base.speed, p.body.velocity); if (base.homing) p.homing = true; }
       this.scene.events.emit('player-fire');
     }
   }
 
   class Player extends Phaser.Physics.Arcade.Sprite {
-    constructor(scene, x, y) { super(scene, x, y, 'pixel'); scene.add.existing(this); scene.physics.add.existing(this); this.setScale(24, 36).setTint(0x88d1ff); this.body.setCollideWorldBounds(true); this.weaponManager = new WeaponManager(scene, this); this.maxHp = PLAYER_CONFIG.maxHp; this.hp = this.maxHp; this.lives = PLAYER_CONFIG.lives; this.bombs = PLAYER_CONFIG.bombsPerLife; this.invuln = 0; this.spawnInvuln = 0; this.shieldHits = 0; this.lastFacing = 1; }
+    constructor(scene, x, y) { super(scene, x, y, 'player-sprite'); scene.add.existing(this); scene.physics.add.existing(this); this.setScale(2.1).setTint(NES.hero); this.body.setCollideWorldBounds(true); this.weaponManager = new WeaponManager(scene, this); this.maxHp = PLAYER_CONFIG.maxHp; this.hp = this.maxHp; this.lives = PLAYER_CONFIG.lives; this.bombs = PLAYER_CONFIG.bombsPerLife; this.invuln = 0; this.spawnInvuln = 0; this.shieldHits = 0; this.lastFacing = 1; }
     resetOnRespawn(x, y) { this.setPosition(x, y); this.hp = this.maxHp; this.bombs = PLAYER_CONFIG.bombsPerLife; this.spawnInvuln = PLAYER_CONFIG.respawnInvulnMs; this.setActive(true).setVisible(true); this.body.enable = true; }
     update(input, time, delta) { this.weaponManager.update(delta); this.invuln = Math.max(0, this.invuln - delta); this.spawnInvuln = Math.max(0, this.spawnInvuln - delta); this.alpha = this.invuln > 0 || this.spawnInvuln > 0 ? (Math.floor(time / 50) % 2 ? 0.4 : 1) : 1; const move = input.getMoveX(); this.body.setVelocityX(move * PLAYER_CONFIG.speed); if (move !== 0) this.lastFacing = Math.sign(move); if (input.jumpPressed() && this.body.blocked.down) this.setVelocityY(PLAYER_CONFIG.jumpVelocity); if (input.shootHeld()) { const aim = input.getAim(); if (Math.abs(aim.x) < 0.1 && Math.abs(aim.y) < 0.1) aim.x = this.lastFacing; this.weaponManager.fire(aim, time); } }
     damage(amount) { if (this.invuln > 0 || this.spawnInvuln > 0) return false; if (this.shieldHits > 0) { this.shieldHits -= 1; this.invuln = 300; return false; } this.hp -= amount; this.invuln = PLAYER_CONFIG.invulnMs; return this.hp <= 0; }
   }
 
   class Enemy extends Phaser.Physics.Arcade.Sprite {
-    constructor(scene, x, y, type, diff) { super(scene, x, y, 'pixel'); scene.add.existing(this); scene.physics.add.existing(this); this.type = type; this.cfg = ENEMY_TYPES[type]; this.hp = this.cfg.hp * diff.hpMult; this.score = Math.round(this.cfg.score * diff.hpMult); this.setScale(type === 'pod' ? 20 : 24, type === 'pod' ? 20 : 28).setTint(this.cfg.color); this.body.setAllowGravity(type !== 'pod').setCollideWorldBounds(true); this.nextFire = 0; this.fireRate = this.cfg.cadence > 0 ? this.cfg.cadence / diff.fireMult : 99999; }
+    constructor(scene, x, y, type, diff) { super(scene, x, y, 'enemy-sprite'); scene.add.existing(this); scene.physics.add.existing(this); this.type = type; this.cfg = ENEMY_TYPES[type]; this.hp = this.cfg.hp * diff.hpMult; this.score = Math.round(this.cfg.score * diff.hpMult); this.setScale(type === 'pod' ? 1.3 : 1.8).setTint(this.cfg.color); this.body.setAllowGravity(type !== 'pod').setCollideWorldBounds(true); this.nextFire = 0; this.fireRate = this.cfg.cadence > 0 ? this.cfg.cadence / diff.fireMult : 99999; }
     updateBehavior(player, time, bullets) { if (!this.active) return; const dir = Math.sign(player.x - this.x) || -1; switch (this.cfg.behavior) { case 'runner': case 'mine': this.setVelocityX(dir * this.cfg.speed); break; case 'flying': this.setVelocity(dir * this.cfg.speed, Math.sin(time / 260 + this.x * 0.01) * 70); break; case 'jumper': this.setVelocityX(dir * this.cfg.speed * 0.6); if (this.body.blocked.down && Math.random() < 0.015) this.setVelocityY(-320); break; case 'sniper': case 'missile': case 'turret': this.setVelocityX(0); break; default: this.setVelocityX(dir * this.cfg.speed * 0.45); }
       if (time > this.nextFire && this.cfg.cadence > 0) { this.nextFire = time + this.fireRate; if (this.cfg.behavior === 'sniper') { const line = this.scene.add.rectangle(this.x, this.y, Math.max(20, Math.abs(player.x - this.x)), 3, 0xff4444).setOrigin(0, 0.5); line.rotation = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y); this.scene.time.delayedCall(this.cfg.telegraph, () => { if (!this.active) return; line.destroy(); this.shootAt(player, bullets, 1.5); }); } else if (this.cfg.behavior === 'missile') { this.scene.spawnWarning(player.x + Phaser.Math.Between(-180, 180)); this.scene.time.delayedCall(this.cfg.telegraph, () => this.shootAt(player, bullets, 1)); } else this.shootAt(player, bullets, 1); }
     }
-    shootAt(player, bullets, scale) { if (!this.active || !player.active) return; const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y); const b = new Projectile(this.scene, this.x, this.y, 'enemy', 1, 2500, 0xff6f6f); b.setScale(7, 3 * scale); bullets.add(b); this.scene.physics.velocityFromRotation(angle, this.cfg.projectileSpeed, b.body.velocity); }
+    shootAt(player, bullets, scale) { if (!this.active || !player.active) return; const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y); const b = new Projectile(this.scene, this.x, this.y, 'enemy', 1, 2500, 0xff6f6f); b.setScale(1.3, Math.max(1.1, 1.3 * scale)); bullets.add(b); this.scene.physics.velocityFromRotation(angle, this.cfg.projectileSpeed, b.body.velocity); }
     receiveDamage(d) { this.hp -= d; if (this.hp <= 0) { this.scene.events.emit('enemy-killed', this.score, this.x, this.y); this.destroy(); } }
   }
 
   class Boss extends Phaser.Physics.Arcade.Sprite {
-    constructor(scene, x, y, cfg, diff) { super(scene, x, y, 'pixel'); scene.add.existing(this); scene.physics.add.existing(this); this.cfg = cfg; this.hpMax = Math.round(cfg.baseHp * diff.hpMult * 1.4); this.hp = this.hpMax; this.phase = 1; this.nextAction = 1200; this.attackIndex = 0; this.setTint(cfg.color).setScale(78, 82); this.body.setAllowGravity(false).setImmovable(true); this.introDone = false; }
+    constructor(scene, x, y, cfg, diff) { super(scene, x, y, 'boss-sprite'); scene.add.existing(this); scene.physics.add.existing(this); this.cfg = cfg; this.hpMax = Math.round(cfg.baseHp * diff.hpMult * 1.4); this.hp = this.hpMax; this.phase = 1; this.nextAction = 1200; this.attackIndex = 0; this.setTint(cfg.color).setScale(2.3); this.body.setAllowGravity(false).setImmovable(true); this.introDone = false; }
     startIntro() { this.y -= 200; this.scene.tweens.add({ targets: this, y: this.scene.groundY - 70, duration: 900, ease: 'Cubic.easeOut', onComplete: () => { this.introDone = true; } }); }
     updateBoss(player, time, bullets) { if (!this.active || !this.introDone) return; if (this.hp < this.hpMax * 0.5) this.phase = 2; this.x = Phaser.Math.Clamp(this.x + Math.sin(time / 700) * 1.2, this.scene.levelWidth - 360, this.scene.levelWidth - 90); if (time < this.nextAction) return; const pattern = this.cfg.patterns[(this.attackIndex++) % this.cfg.patterns.length]; this.nextAction = time + pattern.cooldown / (this.phase === 2 ? 1.2 : 1);
       if (pattern.type === 'spread') for (let i = -2; i <= 2; i++) this.spawnBullet(player, bullets, i * 0.2, 290 + this.phase * 30);
       if (pattern.type === 'dash') { const tx = Phaser.Math.Clamp(player.x + Phaser.Math.Between(-40, 40), this.scene.levelWidth - 420, this.scene.levelWidth - 120); this.scene.tweens.add({ targets: this, x: tx, duration: 280, yoyo: true }); this.scene.cameras.main.shake(100, 0.008); }
       if (pattern.type === 'ring') for (let a = 0; a < 12; a++) this.spawnBulletAngle((Math.PI * 2 * a) / 12, bullets, 210 + this.phase * 45);
-      if (pattern.type === 'missiles') for (let i = 0; i < 3 + this.phase; i++) { const wx = player.x + Phaser.Math.Between(-180, 180); this.scene.spawnWarning(wx); this.scene.time.delayedCall(420 + i * 120, () => { if (!this.active) return; const b = new Projectile(this.scene, wx, -20, 'enemy', 1, 3000, 0xff9b59); b.setScale(6, 18); bullets.add(b); b.body.velocity.y = 260; }); }
+      if (pattern.type === 'missiles') for (let i = 0; i < 3 + this.phase; i++) { const wx = player.x + Phaser.Math.Between(-180, 180); this.scene.spawnWarning(wx); this.scene.time.delayedCall(420 + i * 120, () => { if (!this.active) return; const b = new Projectile(this.scene, wx, -20, 'enemy', 1, 3000, 0xff9b59); b.setScale(1.6, 4.2); bullets.add(b); b.body.velocity.y = 260; }); }
     }
     spawnBullet(player, bullets, off, speed) { this.spawnBulletAngle(Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y) + off, bullets, speed); }
-    spawnBulletAngle(angle, bullets, speed) { const b = new Projectile(this.scene, this.x - 40, this.y - 20, 'enemy', 1, 2800, 0xff7f7f); b.setScale(8, 4); bullets.add(b); this.scene.physics.velocityFromRotation(angle, speed, b.body.velocity); }
+    spawnBulletAngle(angle, bullets, speed) { const b = new Projectile(this.scene, this.x - 40, this.y - 20, 'enemy', 1, 2800, 0xff7f7f); b.setScale(1.5, 1.5); bullets.add(b); this.scene.physics.velocityFromRotation(angle, speed, b.body.velocity); }
     receiveDamage(d) { this.hp -= d; if (this.hp <= 0) { this.scene.events.emit('boss-defeated', this.cfg.score || 5000); this.destroy(); } }
   }
 
@@ -143,7 +154,28 @@
     update(s) { this.text.setText(`HP ${s.hp}/${s.maxHp}   Lives ${s.lives}   Bombs ${s.bombs}   Weapon ${s.weapon}   Score ${s.score}   Stage ${s.stage}`); if (s.boss) { this.bossBg.setVisible(true); this.boss.setVisible(true); this.boss.width = 410 * Phaser.Math.Clamp(s.boss.hp / s.boss.max, 0, 1); } else { this.bossBg.setVisible(false); this.boss.setVisible(false); } }
   }
 
-  class BootScene extends Phaser.Scene { constructor() { super('BootScene'); } create() { const g = this.add.graphics(); g.fillStyle(0xffffff, 1).fillRect(0, 0, 1, 1).generateTexture('pixel', 1, 1).destroy(); this.cameras.main.setBackgroundColor('#05070e'); this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'IRON VIPER\nBLACK SUN', { fontSize: '46px', align: 'center', color: '#ffdb7d' }).setOrigin(0.5); this.time.delayedCall(350, () => this.scene.start('TitleScene')); } }
+  class BootScene extends Phaser.Scene {
+    constructor() { super('BootScene'); }
+    create() {
+      const g = this.add.graphics();
+      g.fillStyle(0xffffff, 1).fillRect(0, 0, 1, 1).generateTexture('pixel', 1, 1);
+      g.clear();
+      g.fillStyle(NES.hero, 1).fillRect(2, 2, 12, 20).fillStyle(NES.heroTrim, 1).fillRect(4, 4, 8, 6).fillRect(5, 12, 6, 8).generateTexture('player-sprite', 16, 24);
+      g.clear();
+      g.fillStyle(NES.enemy, 1).fillRect(1, 2, 14, 16).fillStyle(0xf4cf9b, 1).fillRect(4, 4, 8, 4).fillStyle(0x6d1f1f, 1).fillRect(3, 10, 10, 6).generateTexture('enemy-sprite', 16, 20);
+      g.clear();
+      g.fillStyle(NES.mech, 1).fillRect(4, 2, 56, 38).fillStyle(0x513d29, 1).fillRect(8, 7, 48, 10).fillRect(14, 22, 35, 13).fillStyle(0xf7d98e, 1).fillRect(25, 9, 15, 7).generateTexture('boss-sprite', 64, 42);
+      g.clear();
+      g.fillStyle(0xfff2a2, 1).fillRect(0, 1, 10, 2).generateTexture('bullet-player', 10, 4);
+      g.clear();
+      g.fillStyle(0xff8686, 1).fillRect(0, 1, 10, 2).generateTexture('bullet-enemy', 10, 4);
+      g.destroy();
+
+      this.cameras.main.setBackgroundColor('#05070e');
+      this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'IRON VIPER\nBLACK SUN', { fontSize: '46px', align: 'center', color: '#ffdb7d' }).setOrigin(0.5);
+      this.time.delayedCall(350, () => this.scene.start('TitleScene'));
+    }
+  }
 
   class TitleScene extends Phaser.Scene {
     constructor() { super('TitleScene'); }
@@ -176,8 +208,10 @@
     create() {
       this.cameras.main.setBackgroundColor(Phaser.Display.Color.IntegerToColor(this.levelData.theme).rgba);
       this.physics.world.setBounds(0, 0, this.levelWidth, GAME_HEIGHT);
-      for (let i = 0; i < 14; i++) { const y = 120 + (i % 4) * 65; const w = 200 + (i % 3) * 80; this.add.rectangle(i * 380 + 90, y, w, 45, 0x000000, 0.2 + (i % 3) * 0.07).setScrollFactor(0.2 + (i % 5) * 0.13, 1); }
+      for (let i = 0; i < 80; i++) this.add.rectangle(i * 120 + 40, 70 + (i % 4) * 4, 2, 2, NES.cloud, 0.8).setScrollFactor(0.08, 0.08);
+      for (let i = 0; i < 14; i++) { const y = 120 + (i % 4) * 65; const w = 200 + (i % 3) * 80; this.add.rectangle(i * 380 + 90, y, w, 45, NES.sky, 0.4 + (i % 3) * 0.07).setScrollFactor(0.2 + (i % 5) * 0.13, 1); }
       this.platforms = this.physics.add.staticGroup(); const ground = this.add.rectangle(this.levelWidth / 2, this.groundY + 18, this.levelWidth, 40, 0x2a2d37); this.physics.add.existing(ground, true); this.platforms.add(ground);
+      this.add.rectangle(this.levelWidth / 2, this.groundY + 2, this.levelWidth, 10, NES.grass, 1);
       this.enemies = this.physics.add.group({ runChildUpdate: true }); this.enemyBullets = this.physics.add.group({ runChildUpdate: true }); this.pickups = this.physics.add.staticGroup();
       this.player = new Player(this, 80, this.groundY - 40); this.inputManager = new InputManager(this); this.hud = new HUD(this); this.hud.showStageCard(`Stage ${this.levelData.id}\n${this.levelData.name}`);
       this.physics.add.collider(this.player, this.platforms); this.physics.add.collider(this.enemies, this.platforms);
@@ -208,7 +242,7 @@
     }
     updateHoming(p, delta) { if (!p?.active || !p.homing) return; let target = null; let best = Infinity; this.enemies.children.iterate((e) => { if (!e?.active) return; const d = Phaser.Math.Distance.Between(p.x, p.y, e.x, e.y); if (d < best) { target = e; best = d; } }); if (!target && this.boss?.active) target = this.boss; if (!target) return; const a = Phaser.Math.Angle.Between(p.x, p.y, target.x, target.y); const s = Phaser.Math.Clamp(p.body.velocity.length() + delta * 0.02, 260, 420); this.physics.velocityFromRotation(a, s, p.body.velocity); }
     onPlayerBulletHitsEnemy(b, e) { e.receiveDamage(b.damage); b.pierce -= 1; this.spawnImpact(b.x, b.y, 0xfff7a8); if (b.pierce < 0) b.destroy(); }
-    onPlayerBulletHitsBoss(b, boss) { boss.receiveDamage(b.damage); b.pierce -= 1; this.spawnImpact(b.x, b.y, 0xffe4a0); if (b.pierce < 0) b.destroy(); }
+    onPlayerBulletHitsBoss(b, bossBody) { const boss = bossBody?.receiveDamage ? bossBody : this.boss; if (!boss?.receiveDamage) { b.destroy(); return; } boss.receiveDamage(b.damage); b.pierce -= 1; this.spawnImpact(b.x, b.y, 0xffe4a0); if (b.pierce < 0) b.destroy(); }
     onEnemyBulletHitsPlayer(_p, b) { b.destroy(); this.damagePlayer(1, b.x); }
     onPlayerHazard(_p, h) { const active = h.activeHazard !== undefined ? h.activeHazard : true; if (!active) return; this.damagePlayer(h.hazardDamage || 1, h.x); if (h.isCollapsing) { h.body.enable = false; this.tweens.add({ targets: h, alpha: 0.2, y: h.y + 220, duration: 900, onComplete: () => h.destroy() }); } }
     damagePlayer(amount, sourceX) { const dead = this.player.damage(amount); this.spawnImpact(this.player.x, this.player.y - 10, 0xff6666); if (this.save.settings.screenShake) this.cameras.main.shake(90, 0.004); if (dead) { this.player.lives -= 1; if (this.player.lives < 0) { this.registry.set('score', this.score); this.scene.start('GameOverScene', { score: this.score, levelIndex: this.levelIndex }); return; } this.time.delayedCall(500, () => this.respawnPlayer()); } else this.player.body.setVelocityX((this.player.x < sourceX ? -1 : 1) * 180); }

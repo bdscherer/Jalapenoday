@@ -189,7 +189,12 @@ export class LevelScene extends Phaser.Scene {
     if (bullet.pierce < 0) bullet.destroy();
   }
 
-  onPlayerBulletHitsBoss(bullet, boss) {
+  onPlayerBulletHitsBoss(bullet, bossBody) {
+    const boss = bossBody?.receiveDamage ? bossBody : this.boss;
+    if (!boss?.receiveDamage) {
+      bullet.destroy();
+      return;
+    }
     boss.receiveDamage(bullet.damage);
     bullet.pierce -= 1;
     this.spawnImpact(bullet.x, bullet.y, 0xffe4a0);
