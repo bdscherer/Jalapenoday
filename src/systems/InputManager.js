@@ -9,10 +9,14 @@ export class InputManager {
     });
     this.pad = null;
     this.pauseLatch = false;
+    this.prevPadState = { bomb: false, pause: false, jump: false };
     this.scene.input.gamepad.once('connected', (pad) => { this.pad = pad; });
     this.scene.input.gamepad.on('connected', (pad) => { this.pad = pad; });
     this.scene.input.gamepad.on('disconnected', (pad) => {
-      if (this.pad && this.pad.index === pad.index) this.pad = null;
+      if (this.pad && this.pad.index === pad.index) {
+        this.pad = null;
+        this.prevPadState = { bomb: false, pause: false, jump: false };
+      }
     });
   }
 
@@ -43,8 +47,15 @@ export class InputManager {
     return { x: x / len, y: y / len };
   }
 
+  consumePadEdge(name, isPressed) {
+    const wasPressed = this.prevPadState[name];
+    this.prevPadState[name] = !!isPressed;
+    return !!isPressed && !wasPressed;
+  }
+
   jumpPressed() {
-    return Phaser.Input.Keyboard.JustDown(this.keys.jump) || !!this.pad?.A;
+    const padJump = this.consumePadEdge('jump', !!this.pad?.A);
+    return Phaser.Input.Keyboard.JustDown(this.keys.jump) || padJump;
   }
 
   shootHeld() {
@@ -52,11 +63,14 @@ export class InputManager {
   }
 
   bombPressed() {
-    return Phaser.Input.Keyboard.JustDown(this.keys.bomb) || Phaser.Input.Gamepad.Button.JustDown(this.pad?.R1);
+    const padBomb = this.consumePadEdge('bomb', !!this.pad?.R1);
+    return Phaser.Input.Keyboard.JustDown(this.keys.bomb) || padBomb;
   }
 
   pausePressed() {
-    const pressed = Phaser.Input.Keyboard.JustDown(this.keys.pauseEsc) || Phaser.Input.Keyboard.JustDown(this.keys.pauseEnter) || Phaser.Input.Gamepad.Button.JustDown(this.pad?.START);
+    const keyboardPause = Phaser.Input.Keyboard.JustDown(this.keys.pauseEsc) || Phaser.Input.Keyboard.JustDown(this.keys.pauseEnter);
+    const gamepadPause = this.consumePadEdge('pause', !!this.pad?.START);
+    const pressed = keyboardPause || gamepadPause;
     if (pressed && !this.pauseLatch) {
       this.pauseLatch = true;
       this.scene.time.delayedCall(180, () => { this.pauseLatch = false; });

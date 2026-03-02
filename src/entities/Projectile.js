@@ -13,7 +13,6 @@ export class Projectile extends Phaser.Physics.Arcade.Image {
   }
 
   preUpdate(time, delta) {
-    super.preUpdate(time, delta);
     this.life -= delta;
     if (this.life <= 0 || this.x < -100 || this.x > this.scene.levelWidth + 100 || this.y < -50 || this.y > 650) {
       this.destroy();
